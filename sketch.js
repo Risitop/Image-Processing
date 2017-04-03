@@ -13,32 +13,18 @@ function preload() {
 
 function setup() {
     img = imgF;
-    createCanvas(img.width, img.height);
-    img.convolution33([
-        [16, 26, 16],
-        [26, 41, 26],
-        [16, 26, 16]
-        
-    ], true);
-    img.convolution33([
-        [0, -1, 0],
-        [-1, 5, -1],
-        [0, -1, 0]
-        
-    ], true);
-    img.convolution33([
-        [-2, -1, 0],
-        [-1, 1, 1],
-        [0, 1, 2]
-        
-    ], true);
-    pixelDensity(1);
+    createCanvas(img.width * 2, img.height);
+    pixelDensity(1);    
     image(img, 0, 0);
+    img.flashlight(100);
+    image(img, img.width, 0);
     frameRate(10);
 }
 
 function draw() {
+    
 }
+
 function find_closest_value(tab, e) {
     var closest = tab[0], min_d = Math.abs(tab[0] - e);
     for (var i = 1; i < tab.length; i++) {
@@ -80,6 +66,23 @@ p5.Image.prototype.getColor = function(x, y) { // Get the color on coord (x, y)
     // Returns the color of the (x, y) pixel
     var k = 4 * (min(this.height - 1, max(0, y)) * this.width + min(this.width - 1, max(0, x)));
     return color(this.pixels[k], this.pixels[k + 1], this.pixels[k + 2]);
+}
+
+p5.Image.prototype.getFloatingColor = function(x, y) {
+    var colors = [], i = parseInt(x), j = parseInt(y);
+    for (var a = 0; a < 2; a++)
+        for (var b = 0; b < 2; b++)
+            colors.push(this.getColor(parseInt(x) + a, parseInt(y) + b));
+
+    var r = 0, g = 0, b = 0;
+    for (var k = 0; k < 4; k++) {
+        var alp = Math.abs( (x - i - ( (3 - k) % 2 ) ) * (y - j - parseInt( (3 - k) / 2 ) ) );
+        r += alp * red(colors[k]);
+        g += alp * green(colors[k]);
+        b += alp * blue(colors[k]);
+    }
+
+    return color(r, g, b);
 }
 
 p5.Image.prototype.setColor = function(x, y, color) { // Set color on coord (x, y)
@@ -439,4 +442,172 @@ p5.Image.prototype.crop = function(x, y, w, h) {
     
     newImg.updatePixels();
     return newImg;
+}
+
+p5.Image.prototype.radialExplosion = function(radius, intensity) {
+    
+    this.loadPixels();
+    
+    var cpImg = createImage(this.width, this.height);
+    cpImg.loadPixels();
+    
+    for (var i = 0; i < this.pixels.length; i++) {
+        cpImg.pixels[i] = this.pixels[i];
+    }
+    
+    cpImg.updatePixels();
+    
+    var midh = this.height / 2;
+    var midw = this.width / 2;
+    
+    function sumColors(c1, c2, c1Proportion) {
+        return 
+    }
+    
+    for (var i = 0; i < this.width; i++) {
+        for (var j = 0; j < this.height; j++) {
+            var dx = midw - i;
+            var dy = midh - j;
+            var norma = sqrt(dx * dx + dy * dy);
+            dx = dx / norma * intensity * random();
+            dy = dy / norma * intensity * random();
+            var nb_color = cpImg.getFloatingColor(i + dx, j + dy);
+            var old_color = cpImg.getColor(i, j);
+            var c1Proportion = min(1, 3 * radius / ( (norma + 1) ));
+            var new_color = color( red(old_color) * c1Proportion + red(nb_color) * (1 - c1Proportion),
+                                 green(old_color) * c1Proportion + green(nb_color) * (1 - c1Proportion),
+                                 blue(old_color) * c1Proportion + blue(nb_color) * (1 - c1Proportion)
+                                );
+            this.setColor( i, j, new_color );
+        }
+    }
+    
+    this.updatePixels();
+    
+    console.log("Terminated.");
+}
+
+p5.Image.prototype.radialBlur = function(intensity) {
+    
+    intensity /= 1000;
+    
+    angleMode(RADIANS);
+    
+    this.loadPixels();
+    
+    var cpImg = createImage(this.width, this.height);
+    cpImg.loadPixels();
+    
+    for (var i = 0; i < this.pixels.length; i++) {
+        cpImg.pixels[i] = this.pixels[i];
+    }
+    
+    cpImg.updatePixels();
+    
+    var midh = this.height / 2;
+    var midw = this.width / 2;
+    
+    function toPolar(x, y) {
+        return {rho: sqrt(x*x + y*y), theta: atan2(y, x)};
+    }
+    
+    function toCartesian(rho, theta) {
+        return {x: rho * cos(theta), y: rho * sin(theta)};
+    }
+    
+    for (var i = 0; i < this.width; i++) {
+        for (var j = 0; j < this.height; j++) {
+            var p1 = {x: i - midw, y: j - midh};
+            var p1Polar = toPolar(p1.x, p1.y);
+            var p2 = toCartesian(p1Polar.rho * (1 - intensity), p1Polar.theta),
+                p3 = toCartesian(p1Polar.rho * (1 + intensity), p1Polar.theta);
+            var c1 = cpImg.getFloatingColor(p1.x + midw, p1.y + midh),
+                c2 = cpImg.getFloatingColor(p2.x + midw, p2.y + midh),
+                c3 = cpImg.getFloatingColor(p3.x + midw, p3.y + midh);
+            this.setColor(i, j, color( 0.1 * red(c1) + 0.4 * red(c2) + 0.4 * red(c3),
+                                       0.1 * green(c1) + 0.4 * green(c2) + 0.4 * green(c3),
+                                       0.1 * blue(c1) + 0.4 * blue(c2) + 0.4 * blue(c3)));
+            
+        }
+    }
+    
+    this.updatePixels();
+    
+    console.log("Terminated.");
+}
+
+p5.Image.prototype.circularBlur = function(intensity) {
+    
+    angleMode(RADIANS);
+    
+    intensity /= 1000;
+    
+    this.loadPixels();
+    
+    var cpImg = createImage(this.width, this.height);
+    cpImg.loadPixels();
+    
+    for (var i = 0; i < this.pixels.length; i++) {
+        cpImg.pixels[i] = this.pixels[i];
+    }
+    
+    cpImg.updatePixels();
+    
+    var midh = this.height / 2;
+    var midw = this.width / 2;
+    
+    function toPolar(x, y) {
+        return {rho: sqrt(x*x + y*y), theta: atan2(y, x)};
+    }
+    
+    function toCartesian(rho, theta) {
+        return {x: rho * cos(theta), y: rho * sin(theta)};
+    }
+    
+    for (var i = 0; i < this.width; i++) {
+        for (var j = 0; j < this.height; j++) {
+            var p1 = {x: i - midw, y: j - midh};
+            var p1Polar = toPolar(p1.x, p1.y);
+            var p2 = toCartesian(p1Polar.rho, p1Polar.theta + intensity),
+                p3 = toCartesian(p1Polar.rho, p1Polar.theta - intensity);
+            var c1 = cpImg.getFloatingColor(p1.x + midw, p1.y + midh),
+                c2 = cpImg.getFloatingColor(p2.x + midw, p2.y + midh),
+                c3 = cpImg.getFloatingColor(p3.x + midw, p3.y + midh);
+            this.setColor(i, j, color( 0.33 * red(c1) + 0.33 * red(c2) + 0.33 * red(c3),
+                                       0.33 * green(c1) + 0.33 * green(c2) + 0.33 * green(c3),
+                                       0.33 * blue(c1) + 0.33 * blue(c2) + 0.33 * blue(c3)));
+            
+        }
+    }
+    
+    this.updatePixels();
+    
+    console.log("Terminated.");
+}
+
+p5.Image.prototype.flashlight = function(intensity) {
+    
+    intensity /= 100;
+    
+    function f(d, dM) {
+        return (dM - d) / dM * (1 + intensity);
+    }
+    
+    this.loadPixels();
+    
+    var midh = this.height / 2,
+        midw = this.width / 2;
+    
+    var maxD = sqrt(midh*midh + midw*midw) * 0.8 * intensity;
+    
+    for (var i = 0; i < this.width; i++) {
+        for (var j = 0; j < this.height; j++) {
+            var p = {x: i - midw, y: j - midh};
+            var d = sqrt(p.x*p.x + p.y*p.y);
+            var coef = f(d, maxD),
+                c = this.getColor(i, j);
+            this.setColor(i, j, color(coef * red(c), coef * green(c), coef * blue(c)));
+        }
+    }    
+    this.updatePixels();
 }
